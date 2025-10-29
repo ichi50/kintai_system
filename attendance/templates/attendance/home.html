@@ -1,0 +1,15 @@
+<h1>勤怠管理システム</h1>
+<p>ようこそ、{{ user.username }}さん！</p>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit">
+        {% if latest_record %}
+            退勤する (Check Out)
+        {% else %}
+            出勤する (Check In)
+        {% endif %}
+    </button>
+</form>
+
+<hr>
