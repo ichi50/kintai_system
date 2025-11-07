@@ -1,0 +1,23 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}ログアウト完了{% endblock %}
+{% block header_title %}ログアウト完了{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column justify-content-center align-items-center mt-4">
+    <div class="card shadow-lg" style="max-width: 400px; width: 90%;">
+        <div class="card-body p-4 text-center">
+            <h4 class="card-title text-success mb-4">ログアウトが完了しました</h4>
+            <p class="text-muted mb-4">
+                ご利用ありがとうございました。
+            </p>
+            <div class="d-grid">
+                <a href="{% url 'login' %}" class="btn btn-primary btn-lg">
+                    再度ログインする
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

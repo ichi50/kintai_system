@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -23,9 +23,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-e6h1k$0^*e-9uxf7iakn%1lr9f#$0s9&2_w(x1hp+e$svgzrwb'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = ['13.239.16.133']
+ALLOWED_HOSTS = [
+    '13.239.16.133', # EC2パブリックIP (本番用)
+    '127.0.0.1',     # ローカルループバックIP (開発用) ★★★ これを追加 ★★★
+    'localhost',     # ローカルホスト名 (開発用) ★★★ これも追加 ★★★
+]
 
 
 # Application definition
@@ -38,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'attendance',
+    'widget_tweaks',
 ]
 
 MIDDLEWARE = [
@@ -55,7 +60,7 @@ ROOT_URLCONF = 'kintai_app.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'attendance' / 'templates'], # ★★★ この行を追加 ★★★
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -76,11 +81,11 @@ WSGI_APPLICATION = 'kintai_app.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': BASE_DIR / 'kintai',
-        'USER': 'ichi50',
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('kintai.cz0iuymkgyqz.ap-southeast-2.rds.amazonaws.com'), 
-        'PORT': os.environ.get('3306'), 
+        'NAME': 'kintai',
+        'USER': 'root',
+        'PASSWORD': os.environ.get('DB_PASSWORD', '1234'),
+        'HOST': os.environ.get('DB_HOST','127.0.0.1'), 
+        'PORT': os.environ.get('DB_PORT', '3306'), 
         'OPTIONS': {
             'charset': 'utf8mb4',
         }
@@ -129,3 +134,13 @@ STATIC_ROOT = BASE_DIR / 'static'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ログイン後のリダイレクト先URLを定義
+# ルートパス（'/'）にリダイレクトする
+LOGIN_REDIRECT_URL = '/'
+
+# ログアウト後のリダイレクト先URLもついでに定義
+LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+# settings.py の最下部などに追加
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

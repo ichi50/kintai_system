@@ -1,0 +1,30 @@
+{% extends "attendance/base.html" %}
+{% load static %}
+
+{% block title %}ログアウト確認{% endblock %}
+{% block header_title %}ログアウト{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column justify-content-center align-items-center mt-4">
+    <div class="card shadow-lg" style="max-width: 400px; width: 90%;">
+        <div class="card-body p-4 text-center">
+            <h4 class="card-title mb-4">本当にログアウトしますか？</h4>
+
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-danger btn-lg">
+                        ログアウトを実行
+                    </button>
+                </div>
+            </form>
+            
+            <div class="mt-3">
+                <a href="{% url 'index' %}" class="small text-muted">
+                    打刻画面に戻る
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

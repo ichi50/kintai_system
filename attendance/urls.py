@@ -1,10 +1,10 @@
-# attendance/urls.py
-
 from django.urls import path
 from . import views
 
+app_name = 'kintai'
+
 urlpatterns = [
-    path('', views.check_in_out, name='check_in_out'),
-    # 他のURL (例: 記録一覧 path('list/', views.AttendanceListView.as_view(), name='attendance_list'))
-    path('', include('attendance.urls')),
+    # 勤怠アプリのルートパス。views.index（仮）を参照
+    path('', views.index, name='index'),
+    path('records/', views.record_list, name='record_list'),
 ]
