@@ -1,0 +1,468 @@
+{% extends "attendance/app_base.html" %}
+{% load static %}
+{% load kintai_calendar_tags %}
+{% block title %}シフト申請画面{% endblock %}
+{% block header_title %}シフト申請{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column align-items-center mt-4">
+    <div style="max-width: 450px; width: 100%;">
+        
+        {# 1. 案内メッセージ #}
+        <div class="alert alert-primary text-center shadow-sm mb-4" role="alert">
+            日付を選択して一日のスケジュールを設定
+        </div>
+
+        {# 2. 週単位申請ボタン #}
+        <div class="mb-4 d-grid gap-2">
+            <button id="weeklyRequestButton" class="btn btn-success btn-lg">
+                一週間の基本スケジュールを設定する
+            </button>
+        </div>
+
+        {# 3. カレンダー表示部分 #}
+        <div class="card shadow-sm mb-5">
+            <div class="card-header bg-light text-center">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    {# カレンダー切り替えボタン #}
+                    <a href="{% url 'scheduling:request_shift' %}?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-sm btn-outline-primary">&lt; 前月</a>
+                    <h5 class="mb-0">{{ current_month_str }}</h5>
+                    <a href="{% url 'scheduling:request_shift' %}?year={{ next_year }}&month={{ next_month }}" class="btn btn-sm btn-outline-primary">次月 &gt;</a>
+                </div>
+            </div>
+            <div class="card-body p-2" id="calendar-container">
+                {# 希望シフト表示カレンダー #}
+                {% get_shift_request_calendar user year month as calendar_html %}
+                {{ calendar_html|safe }}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# 4. 個別申請モーダル (日付セルクリックで表示) #}
+<div class="modal fade" id="individualRequestModal" tabindex="-1" aria-labelledby="individualRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="individualRequestModalLabel">
+                    <span id="modalRequestDate">YYYY年MM月DD日</span> のシフト申請
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="individualShiftForm" method="POST" action="{% url 'scheduling:submit_individual_shift' %}">
+                {% csrf_token %}
+                <input type="hidden" name="schedule_date" id="formScheduleDate">
+                
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="id_start_time" class="form-label">開始時刻</label>
+                        <input type="time" name="start_time" id="id_start_time" class="form-control" value="00:00" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="id_end_time" class="form-label">終了時刻</label>
+                        <input type="time" name="end_time" id="id_end_time" class="form-control" value="00:00" required>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_day_off" id="id_is_day_off">
+                        <label class="form-check-label" for="id_is_day_off">
+                            この日を**休み希望**として申請する
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger me-auto" id="cancelRequestBtn" style="display: none;">
+                       申請を取り消す
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>                     
+                    <button type="submit" class="btn btn-primary" id="submitRequestBtn">この内容で申請</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# 5. 週単位申請モーダル (週ごとの基本スケジュールを設定) #}
+<div class="modal fade" id="weeklyRequestModal" tabindex="-1" aria-labelledby="weeklyRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="weeklyRequestModalLabel">一週間の基本スケジュール設定</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="weeklyShiftForm" method="POST" action="{% url 'scheduling:submit_weekly_shift' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="text-muted mb-4">一週間の勤務可能な時間（最大）を登録してください</p>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm">
+                            <thead>
+                                <tr class="table-light">
+                                    <th>曜日</th>
+                                    <th>休み希望</th>
+                                    <th>開始時刻</th>
+                                    <th>終了時刻</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for day_index, day_name in weekly_days %}
+                                <tr>
+                                    <td>{{ day_name }}</td>
+                                    <td>
+                                        <div class="form-check d-flex justify-content-center">
+                                            <input class="form-check-input weekly-day-off" type="checkbox" 
+                                                   name="is_day_off_{{ day_index }}" id="id_is_day_off_{{ day_index }}" 
+                                                   data-day-index="{{ day_index }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input type="time" class="form-control form-control-sm weekly-start-time" 
+                                               name="start_time_{{ day_index }}" id="id_start_time_{{ day_index }}" value="09:00">
+                                    </td>
+                                    <td>
+                                        <input type="time" class="form-control form-control-sm weekly-end-time" 
+                                               name="end_time_{{ day_index }}" id="id_end_time_{{ day_index }}" value="18:00">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-success">基本スケジュールを保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const individualRequestModalEl = document.getElementById('individualRequestModal');
+    const individualRequestModal = new bootstrap.Modal(individualRequestModalEl);
+    const calendarContainer = document.getElementById('calendar-container');
+    let calendar = null;
+    if (calendarContainer) {
+        // formatmonth内で生成されたテーブル（.calendar）をコンテナ内から取得
+        calendar = calendarContainer.querySelector('.calendar'); 
+    }
+
+    // フォーム要素の取得
+    const individualShiftForm = document.getElementById('individualShiftForm');
+    const formScheduleDateEl = document.getElementById('formScheduleDate');
+    const modalRequestDateEl = document.getElementById('modalRequestDate');
+    const isDayOffCheckbox = document.getElementById('id_is_day_off');
+    const startTimeInput = document.getElementById('id_start_time');
+    const endTimeInput = document.getElementById('id_end_time');
+    
+    //基本スケジュール申請の要素を取得
+    const weeklyRequestButton = document.getElementById('weeklyRequestButton');
+    const weeklyRequestModalEl = document.getElementById('weeklyRequestModal');
+    const weeklyRequestModal = new bootstrap.Modal(weeklyRequestModalEl);
+    const weeklyDayOffCheckboxes = document.querySelectorAll('.weekly-day-off');
+    const weeklyStartTimeInputs = document.querySelectorAll('.weekly-start-time');
+    const weeklyEndTimeInputs = document.querySelectorAll('.weekly-end-time');
+
+    // ボタン要素の取得
+    const submitRequestBtn = document.getElementById('submitRequestBtn');
+    const cancelRequestBtn = document.getElementById('cancelRequestBtn'); // 追加したボタン
+
+    // フォームのデフォルトアクションURLと、取り消しアクションURL
+    const defaultActionUrl = individualShiftForm.action;
+    const cancelActionUrl = "{% url 'scheduling:cancel_individual_shift' %}"; // Django URLタグを使用
+
+    //日付セルクリック時のロジック
+    function updateTimeInputsState(forceDefault = false) {
+        const disabledState = isDayOffCheckbox.checked;
+        startTimeInput.disabled = disabledState;
+        endTimeInput.disabled = disabledState;
+        
+        if (disabledState) {
+            // 休み希望の場合は時間をクリア
+            startTimeInput.value = '';
+            endTimeInput.value = '';
+        } else if (forceDefault) {
+            // 未申請で勤務希望の場合、00:00に強制設定
+            startTimeInput.value = '00:00';
+            endTimeInput.value = '00:00';
+        } else {
+            // 申請済みから勤務希望に切り替えた場合などで、値が空ならデフォルト値(00:00)を再設定
+            if (!startTimeInput.value) {
+                startTimeInput.value = '00:00';
+            }
+            if (!endTimeInput.value) {
+                endTimeInput.value = '00:00';
+            }
+        }
+    }
+
+    // 休み希望チェックボックスのイベントリスナー
+    isDayOffCheckbox.addEventListener('change', function() {
+        // イベント発生時は強制設定は不要 (ユーザーが操作しているため)
+        updateTimeInputsState(false); 
+    });
+
+    if (calendar) { 
+        calendar.addEventListener('click', function(e) {
+            let targetCell = e.target.closest('.clickable-cell');
+            e.stopPropagation();
+
+            if (targetCell && !targetCell.classList.contains('noday')) {
+                const dateString = targetCell.dataset.date; // YYYY-MM-DD
+                const dateObj = new Date(dateString);
+                
+                // カレンダータグで埋め込まれた JSON データを取得
+                let shiftDetail = targetCell.dataset.shiftDetail;
+                let data = {};
+                
+                try {
+                    // &quot; を " に戻してから JSON 解析
+                    if (shiftDetail) {
+                        data = JSON.parse(shiftDetail.replace(/&quot;/g, '"'));
+                    }
+                } catch (error) {
+                    console.error("シフト詳細データの解析エラー:", error);
+                }
+                
+                // モーダルヘッダーの日付を表示
+                const displayDate = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+                modalRequestDateEl.textContent = displayDate;
+                formScheduleDateEl.value = dateString;
+
+                // フォームのactionをデフォルトに戻す
+                individualShiftForm.action = defaultActionUrl;
+                
+                // --- フォームの初期値設定ロジック ---
+                // data.status が存在すれば申請済みと判断 (calendar_tags.py のロジックに依存)
+                const isRequested = data && data.status; 
+                
+                if (isRequested) {
+                    // A. 申請済みの場合:
+                    
+                    // 1. 取り消しボタンを表示
+                    cancelRequestBtn.style.display = 'block'; 
+                    submitRequestBtn.textContent = 'シフトを更新';
+
+                    if (data.is_day_off) {
+                        // 休み希望が設定されている場合
+                        isDayOffCheckbox.checked = true;
+                        startTimeInput.value = ''; // 休み希望なので時間はクリア
+                        endTimeInput.value = '';
+                    } else {
+                        // 勤務希望が設定されている場合
+                        isDayOffCheckbox.checked = false;
+                        // 申請された時間を設定（未設定の場合は '00:00' にフォールバック）
+                        startTimeInput.value = data.start_time || '00:00';
+                        endTimeInput.value = data.end_time || '00:00';
+                    }
+                } else {
+                    // B. 未申請の場合:
+                    
+                    // 1. 取り消しボタンを非表示
+                    cancelRequestBtn.style.display = 'none'; 
+                    submitRequestBtn.textContent = 'この内容で申請';
+
+                    // 2. 初期値を 00:00 に設定し、休み希望チェックを解除
+                    isDayOffCheckbox.checked = false;
+                    startTimeInput.value = '00:00';
+                    endTimeInput.value = '00:00';
+                }
+                
+                // 休み希望チェックボックスの制御ロジックを強制実行
+                // 未申請の場合は、forceDefault=trueで00:00を保証
+                updateTimeInputsState(!isRequested); 
+
+                individualRequestModal.show();
+            }
+        });
+    }
+
+    // 申請取り消しボタンの処理
+    if (cancelRequestBtn) {
+        cancelRequestBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const scheduleDate = formScheduleDateEl.value;
+            if (confirm(`${scheduleDate} のシフト申請を取り消しますか？`)) {
+                // フォームの action を取り消し用のURLに変更
+                individualShiftForm.action = cancelActionUrl;
+                // POSTで送信
+                individualShiftForm.submit(); 
+            }
+        });
+    }
+
+    // 基本スケジュール申請ボタンのイベントリスナー
+    if (weeklyRequestButton) {
+        weeklyRequestButton.addEventListener('click', function() {
+            weeklyRequestModal.show();
+        });
+    }
+
+    // --- 週単位申請フォームのロジック ---
+    // 休み希望チェックボックスの変更を監視し、時間入力フィールドを有効/無効化する
+    weeklyDayOffCheckboxes.forEach(checkbox => {
+        const dayIndex = checkbox.dataset.dayIndex;
+        const startTimeInput = document.getElementById(`id_start_time_${dayIndex}`);
+        const endTimeInput = document.getElementById(`id_end_time_${dayIndex}`);
+
+        function updateWeeklyTimeInputs() {
+            const isDisabled = checkbox.checked;
+            
+            startTimeInput.disabled = isDisabled;
+            endTimeInput.disabled = isDisabled;
+
+            if (isDisabled) {
+                // 休み希望の場合は時間をクリア
+                startTimeInput.value = '';
+                endTimeInput.value = '';
+            } else if (!startTimeInput.value) {
+                 // 休み希望を解除した場合、空ならデフォルト値を再設定
+                 startTimeInput.value = '09:00';
+                 endTimeInput.value = '18:00';
+            }
+        }
+
+        // 初期ロード時と変更時に適用
+        updateWeeklyTimeInputs(); 
+        checkbox.addEventListener('change', updateWeeklyTimeInputs);
+    });
+});
+</script>
+<style>
+.calendar-day {
+    height: 70px; /* セルの高さを確保 */
+    width: 50px;
+    padding: 3px !important; /* セル内の余白を調整 */
+    vertical-align: top; /* 内容を上寄せ */
+    font-size: 0.9em;
+}
+
+.calendar.table-bordered {
+    table-layout: fixed; /* 🚨 必須: セルの幅を固定し、内容によって伸縮させない */
+    width: 100%;
+}
+
+.calendar td {
+    height: 70px; /* 🚨 必須: セルの高さを固定 (例として90px) */
+    vertical-align: top; /* 日付番号をセルの上部に揃える */
+    padding: 5px;
+    position: relative; /* 子要素 (シフト情報) の配置基準にする */
+}
+
+.calendar td .shift-time,
+.calendar td .shift-status {
+    position: absolute; /* 絶対配置に変更 */
+    left: 5px; /* 左端からの位置調整 */
+    right: 5px; /* 右端からの位置調整 */
+    text-align: center; /* 中央揃えにする */
+    /* font-size, margin-top, etc. は内容に応じて調整 */
+}
+
+.calendar td .shift-time {
+    bottom: 10px; /* 🚨 必須: 下端から5pxの位置に配置 */
+    /* 折り返しに違和感がないように文字を小さくし、行間を調整 */
+    font-size: 0.75em; /* 🚨 ご要望: 勤務時間表示の文字を小さく */
+    line-height: 1.2;
+    overflow-wrap: break-word; /* 長すぎる場合に備えて折り返しを許可 */
+}
+
+.calendar td .shift-status {
+    bottom: 35px; /* shift-time の高さに合わせて配置を調整 */
+    font-size: 0.7em;
+    color: #888;
+}
+
+.calendar td .day-num {
+    display: block;
+    text-align: left;
+    font-size: 0.9em;
+    font-weight: bold;
+    margin-bottom: 3px;
+    /* 日付番号は上部左に配置 */
+}
+
+#calendar-container {
+    pointer-events: none; 
+}
+
+/* 2. カレンダーテーブルとそのクリック可能なセルにイベントを戻す */
+/* 透過設定を無効にし、テーブルとセルだけはクリックを受け付ける */
+#calendar-container .calendar,
+#calendar-container .clickable-cell {
+    pointer-events: auto; 
+    
+    /* z-indexを有効にし、他の要素の上に表示されることを保証 */
+    position: relative; 
+    z-index: 10;
+}
+
+/* 日付番号 */
+.day-num {
+    float: right;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+/* 週末のハイライト */
+.sunday .day-num {
+    color: #dc3545; /* 赤 */
+}
+.saturday .day-num {
+    color: #0d6efd; /* 青 */
+}
+.has-request-shift {
+    background-color: #f0f8ff; /* 淡い青 */
+}
+
+/* 希望シフトありのセル */
+.has-request-shift {
+    background-color: #e9f0ff; /* 淡い青でハイライト */
+}
+
+/* シフト情報とステータス */
+.shift-info {
+    font-size: 0.75em;
+    clear: both; /* 日付番号の下に表示 */
+    line-height: 1.2;
+}
+.shift-status {
+    font-size: 0.6em;
+    padding: 0 4px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-top: 2px;
+}
+
+/* 承認ステータス表示 */
+.shift-status {
+    font-size: 0.65em;
+    padding: 0 2px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-top: 1px;
+}
+
+/* 承認中 (pending) */
+.status-pending {
+    background-color: #ffc107; /* Yellow */
+    color: #333;
+}
+
+/* 承認済み (approved) */
+.status-approved {
+    background-color: #28a745; /* Green */
+    color: white;
+}
+
+/* 却下 (rejected) */
+.status-rejected {
+    background-color: #dc3545; /* Red */
+    color: white;
+}
+</style>
+{% endblock %}

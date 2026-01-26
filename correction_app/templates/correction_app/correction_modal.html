@@ -1,0 +1,48 @@
+{# correction_app/templates/correction_app/correction_modal.html #}
+<div class="modal fade" id="correctionModal" tabindex="-1" aria-labelledby="correctionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            
+            <form id="correctionForm">
+                {% csrf_token %}
+                <input type="hidden" id="modalAttendanceDate" name="attendance_date">
+                
+                <div class="modal-header">
+                    <h5 class="modal-title" id="correctionModalLabel">
+                        <span id="modalHeaderDate"></span> 勤怠修正申請
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <div class="modal-body">
+                    
+                    {# 修正理由 #}
+                    <div class="mb-3">
+                        <label for="correctionReason" class="form-label">修正理由（必須）</label>
+                        <textarea class="form-control" id="correctionReason" name="reason" rows="3" required></textarea>
+                    </div>
+
+                    {# 打刻修正項目コンテナ #}
+                    <hr>
+                    <h6 class="mb-3">修正打刻リスト</h6>
+                    <div id="punchItemsContainer">
+                        {# JavaScriptで動的に追加される打刻項目がここに入る #}
+                    </div>
+
+                    {# 項目追加ボタン #}
+                    <button type="button" class="btn btn-sm btn-outline-success mt-3" id="addPunchItem">
+                        <i class="bi bi-plus-circle"></i> 項目追加
+                    </button>
+
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    {# 申請ボタン #}
+                    <button type="submit" class="btn btn-primary" id="submitCorrectionRequest">申請する</button>
+                </div>
+                
+            </form>
+        </div>
+    </div>
+</div>

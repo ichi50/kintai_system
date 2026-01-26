@@ -1,0 +1,310 @@
+{% extends "attendance/app_base.html" %}
+{% load static %}
+
+{% block title %}勤怠修正{% endblock %}
+{% block header_title %}シフト管理アプリ{% endblock %}
+
+{% block content %}
+
+<div class="container my-5">
+    <h4 class="text-center mb-4">勤怠の修正</h4>
+    <div class="card shadow-sm mb-5">
+        <div class="alert alert-primary text-center shadow-sm mb-4" role="alert">
+            日付を選択して勤怠の修正を行ってください
+        </div>
+        <div class="card-header bg-light text-center">
+            <h2 class="text-center mb-4">
+                <a href="{% url 'correction:calendar_month' prev_month|slice:":4" prev_month|slice:"5:" %}" class="btn btn-sm btn-outline-secondary">&lt; 前月</a>
+                {{ current_month_name }}
+                <a href="{% url 'correction:calendar_month' next_month|slice:":4" next_month|slice:"5:" %}" class="btn btn-sm btn-outline-secondary">翌月 &gt;</a>
+            </h2>
+
+        {# カレンダー本体 #}
+            <div class="table-responsive">
+                <table class="table table-bordered text-center calendar">
+                    <thead>
+                        <tr>
+                            <th class="text-danger">日</th><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th>
+                            <th class="text-primary">土</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for week in calendar_data %}
+                        <tr>
+                            {% for day in week %}
+                            {% with attendance=day.attendance %}
+                            <td class="{% if not day.is_current_month %}table-secondary{% endif %}
+                                    {% if day.is_today %}today-highlight{% endif %}
+                                    {% if attendance and attendance.is_punched %}clickable-cell{% endif %}"
+                                data-date="{{ day.date_str }}"
+                                data-attendance-data="{{ attendance|default_if_none:'{}'|escape }}"
+                                {% if attendance and attendance.is_punched %}
+                                data-bs-toggle="modal" 
+                                data-bs-target="#correctionModal"
+                                {% endif %}
+                            >
+                                {# 日付表示 #}
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="day-number {% if forloop.first %}text-danger{% elif forloop.last %}text-primary{% endif %}">
+                                        {{ day.date.day }}
+                                    </span>
+                                </div>
+
+                                {# 🚨 修正: 勤務時間帯の表示 #}
+                                {% if attendance and attendance.is_punched %}
+                                <div class="work-summary small mt-1 text-primary">
+                                    {{ attendance.start_time }} 〜 {{ attendance.end_time }}
+                                </div>
+                                {# 実績はあるが、出退勤が揃っていない場合など（必要に応じて） #}
+                                {% elif attendance %}
+                                <div class="work-summary small mt-1 text-muted">
+                                    打刻なし
+                                </div>
+                                {% endif %}
+                            </td>
+                            {% endwith %}
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# 勤怠修正モーダル（この下に定義） #}
+{% include 'correction_app/correction_modal.html' %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const calendar = document.querySelector('.calendar');
+    const correctionModal = new bootstrap.Modal(document.getElementById('correctionModal'));
+    const punchItemsContainer = document.getElementById('punchItemsContainer');
+    const addPunchItemButton = document.getElementById('addPunchItem');
+    const correctionForm = document.getElementById('correctionForm');
+
+    // 打刻内容の選択肢 (PythonのCHOICESと合わせる)
+    const punchChoices = [
+        {value: 'start', text: '出勤'},
+        {value: 'end', text: '退勤'},
+        {value: 'break_start', text: '休憩開始'},
+        {value: 'break_end', text: '休憩終了'},
+    ];
+
+    let itemCounter = 0; // フォーム要素のユニークなnameを生成するためのカウンター
+
+    // ------------------------------------------
+    // 1. 打刻項目のHTMLを生成するヘルパー関数
+    // ------------------------------------------
+    function createPunchItemHtml(punchTime = '', punchType = '') {
+        const index = itemCounter++;
+        let optionsHtml = punchChoices.map(choice => 
+            `<option value="${choice.value}" ${punchType === choice.value ? 'selected' : ''}>${choice.text}</option>`
+        ).join('');
+        
+        // 現在時刻（HH:MM）のデフォルト値を設定
+        const defaultTime = punchTime || new Date().toTimeString().slice(0, 5);
+
+        return `
+        <div class="row g-3 align-items-center mb-3 punch-item" data-index="${index}">
+            <div class="col-md-5">
+                <label class="form-label visually-hidden">打刻時間</label>
+                <input type="time" class="form-control" name="punch_time_${index}" value="${defaultTime}" required>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label visually-hidden">打刻内容</label>
+                <select class="form-select" name="punch_type_${index}" required>
+                    <option value="" disabled ${!punchType ? 'selected' : ''}>選択してください</option>
+                    ${optionsHtml}
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <button type="button" class="btn btn-danger btn-sm remove-punch-item">
+                    削除
+                </button>
+            </div>
+        </div>
+        `;
+    }
+    
+    // ------------------------------------------
+    // 2. 日付クリック時のモーダル表示ロジック
+    // ------------------------------------------
+    if (calendar) {
+        calendar.addEventListener('click', function(e) {
+            let targetCell = e.target.closest('.clickable-cell');
+
+            if (targetCell) {
+                const dateString = targetCell.dataset.date;
+                // const attendanceData = JSON.parse(targetCell.dataset.attendanceData.replace(/&quot;/g, '"'));
+                
+                // モーダルを初期化
+                punchItemsContainer.innerHTML = '';
+                document.getElementById('correctionReason').value = '';
+                itemCounter = 0; // カウンターをリセット
+
+                // ヘッダーの日付を設定
+                const headerDateElement = document.getElementById('modalHeaderDate');
+                const dateObj = new Date(dateString);
+                headerDateElement.textContent = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+                
+                // フォームの hidden input に日付を設定
+                document.getElementById('modalAttendanceDate').value = dateString;
+                
+                // 初期項目を2つ（出勤と退勤を想定）追加
+                punchItemsContainer.insertAdjacentHTML('beforeend', createPunchItemHtml());
+                punchItemsContainer.insertAdjacentHTML('beforeend', createPunchItemHtml());
+
+                correctionModal.show();
+            }
+        });
+    }
+
+    // ------------------------------------------
+    // 3. 項目追加/削除ロジック
+    // ------------------------------------------
+    addPunchItemButton.addEventListener('click', function() {
+        punchItemsContainer.insertAdjacentHTML('beforeend', createPunchItemHtml());
+    });
+
+    punchItemsContainer.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-punch-item')) {
+            const itemToRemove = e.target.closest('.punch-item');
+            if (itemToRemove) {
+                itemToRemove.remove();
+            }
+        }
+    });
+
+    // ------------------------------------------
+    // 4. 申請ボタンのロジック（フォーム送信）
+    // ------------------------------------------
+    correctionForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const correctionData = {
+            attendance_date: formData.get('attendance_date'),
+            reason: formData.get('reason'),
+            correction_times: []
+        };
+        
+        // 打刻項目を収集
+        const punchItems = punchItemsContainer.querySelectorAll('.punch-item');
+        punchItems.forEach((item, index) => {
+            const punchTimeInput = item.querySelector('input[type="time"]');
+            const punchTypeSelect = item.querySelector('select');
+            
+            // 日付と時間を結合してDateTimeオブジェクトを作成 (バックエンド処理用)
+            const fullDateTime = `${correctionData.attendance_date}T${punchTimeInput.value}:00`;
+
+            correctionData.correction_times.push({
+                sequence: index,
+                punch_time: fullDateTime,
+                punch_type: punchTypeSelect.value
+            });
+        });
+
+        if (correctionData.correction_times.length === 0) {
+            alert('打刻項目を1つ以上追加してください。');
+            return;
+        }
+        
+        // 🚨 修正申請をバックエンドに送信（Fetch APIを使用）
+        fetch("{% url 'correction:submit' %}", { // URLは後でビュー作成時に修正
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            },
+            body: JSON.stringify(correctionData)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('申請の送信に失敗しました。');
+            }
+            return response.json();
+        })
+        .then(data => {
+            alert('勤怠修正申請が完了しました！');
+            correctionModal.hide(); // モーダルを閉じる
+            // ページをリロードまたはカレンダーを更新する
+            window.location.reload(); 
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('申請中にエラーが発生しました: ' + error.message);
+        });
+    });
+    
+    // 🚨 アクセシビリティ警告の再発防止のため、モーダル閉じ時にフォーカスを移動
+    const modalElement = document.getElementById('correctionModal');
+    if (modalElement) {
+        modalElement.addEventListener('hidden.bs.modal', function () {
+            document.body.focus();
+        });
+    }
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 勤怠修正画面のスタイルのみを残す */
+.calendar {
+    table-layout: fixed !important; 
+    width: 100% !important; 
+}
+
+.calendar th, .calendar td {
+    padding: 2px !important; 
+    height: 70px !important; 
+    vertical-align: top !important;
+    cursor: default; /* clickable-cellでのみカーソルを変更 */
+    position: relative; 
+    width: calc(100% / 7) !important; 
+    box-sizing: border-box !important;
+}
+
+/* 🚨 重要な修正: クリック可能なセルでのみカーソルを変更 */
+.calendar td.clickable-cell {
+    cursor: pointer; 
+    background-color: #f7f7f7; /* クリック可能なことを視覚的に示す */
+}
+
+.calendar td .day-number {
+    text-align: right;
+    padding-right: 2px; 
+    font-size: 0.9em !important;
+    font-weight: bold;
+}
+
+.day-num {
+    float: right;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.calendar td .work-summary {
+    text-align: center;
+    font-size: 0.7em !important; 
+    line-height: 1.2 !important;     
+    white-space: normal; 
+    overflow: visible !important; 
+    text-overflow: clip; 
+    margin-top: 2px;
+}
+
+.calendar td.today-highlight {
+    border: 3px solid #ffc107 !important;
+    border-radius: 5px;
+    box-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+    z-index: 10;
+}
+/* 🚨 シフト申請画面のスタイルはすべて削除しました */
+</style>
+{% endblock %}

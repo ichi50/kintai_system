@@ -1,0 +1,79 @@
+<div class="card shadow-sm w-100 border-0">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0">{{ target_date|date:"Y年m月d日" }}({{ target_date|date:"D" }})</h5>
+        <div class="btn-group">
+            <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary">&laquo; 前日</a>
+            <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary">翌日 &raquo;</a>
+        </div>
+    </div>
+    <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold text-primary">
+            <i class="material-icons align-middle fs-5">calendar_view_week</i> 
+            {% if sidebar_data %}週間スケジュール確認{% else %}本日（{{ target_date|date:"m/d" }}）の状況{% endif %}
+        </h6>
+    </div>
+    
+    <div class="card-body p-0" style="max-height: 85vh; overflow-y: auto;">
+        
+        {# --- 週別表示 (sidebar_dataがある場合) --- #}
+        {% if sidebar_data %}
+            {% for day_info in sidebar_data %}
+                <div class="bg-light px-3 py-2 border-bottom fw-bold small d-flex justify-content-between">
+                    <span>{{ day_info.date|date:"m/d(D)" }}</span>
+                    {% if day_info.date == today %}<span class="badge bg-info text-dark">今日</span>{% endif %}
+                </div>
+                
+                {# 特別希望のループ #}
+                {% for req in day_info.requests %}
+                <div class="list-group-item p-2 border-bottom border-start border-danger border-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small fw-bold">{{ req.employee.user.username }}</span>
+                        <span class="badge bg-danger" style="font-size: 0.6rem;">特別</span>
+                    </div>
+                    <div class="small text-primary" style="font-size: 0.8rem;">
+                        {% if req.start_time %}{{ req.start_time|time:"H:i" }}〜{{ req.end_time|time:"H:i" }}{% else %}休み希望{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+
+                {# 基本スケジュールのループ #}
+                <div class="p-2 bg-white">
+                    {% for base in day_info.bases %}
+                    <div class="d-flex justify-content-between extra-small text-muted mb-1" style="font-size: 0.75rem;">
+                        <span>{{ base.employee.user.username }}</span>
+                        <span>{{ base.start_time|time:"H:i" }}〜{{ base.end_time|time:"H:i" }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+
+        {# --- 日別表示 (従来の表示) --- #}
+        {% else %}
+            <div class="list-group list-group-flush">
+                {% for req in specific_requests %}
+                <div class="list-group-item p-3 border-bottom">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold">{{ req.employee.user.username }}</span>
+                        <span class="badge bg-danger">特別スケジュール</span>
+                    </div>
+                    <div class="small fw-bold text-primary">
+                        {% if req.start_time %}{{ req.start_time|time:"H:i" }} 〜 {{ req.end_time|time:"H:i" }}{% else %}休み希望{% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="p-4 text-center text-muted small">特別な希望はありません</div>
+                {% endfor %}
+            </div>
+            <div class="bg-light p-3 border-top">
+                <h6 class="small fw-bold text-secondary mb-2">基本スケジュール</h6>
+                {% for base in weekly_base_schedules %}
+                <div class="d-flex justify-content-between small mb-1">
+                    <span>{{ base.employee.user.username }}</span>
+                    <span class="text-muted">{{ base.start_time|time:"H:i" }}〜{{ base.end_time|time:"H:i" }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+    </div>
+</div>

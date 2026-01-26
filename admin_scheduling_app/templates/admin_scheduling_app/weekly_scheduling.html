@@ -1,0 +1,149 @@
+{% extends "admin_app/base_admin.html" %}
+{% load admin_calendar_tags %} 
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="row g-3">
+        <div class="col-md-9">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <h5 class="fw-bold mb-0 me-3">週別スケジュール</h5>
+                        
+                        <div class="btn-group me-3">
+                            <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="material-icons fs-6 align-middle">chevron_left</i>
+                            </a>
+                            <a href="?date={{ today|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary">今日</a>
+                            <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="material-icons fs-6 align-middle">chevron_right</i>
+                            </a>
+                        </div>
+                        <span class="fw-bold">{{ week_days.0|date:"Y/m/d" }} 〜 {{ week_days.6|date:"m/d" }}</span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <form method="post" action="{% url 'admin_scheduling_app:auto_assign' %}" 
+                            onsubmit="return confirm('表示されている7日間に対して、希望・基本スケジュールを自動で割り当てます。よろしいですか？');">
+                            {% csrf_token %}
+                            <input type="hidden" name="date" value="{{ target_date|date:'Y-m-d' }}">
+                            <button type="submit" class="btn btn-outline-success d-flex align-items-center">
+                                <i class="material-icons fs-5 me-1">auto_awesome</i>希望シフト割り当て
+                            </button>
+                        </form>
+
+                        <div class="btn-group">
+                            <a href="{% url 'admin_scheduling_app:daily_scheduling' %}?date={{ target_date|date:'Y-m-d' }}" class="btn btn-outline-primary">日別</a>
+                            <a href="#" class="btn btn-primary active">週別</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0 text-center" style="table-layout: fixed;">
+                            <thead>
+                                <tr class="bg-light">
+                                    <th style="width: 140px;">従業員</th>
+                                    {% for day in week_days %}
+                                    <th class="{% if day == today %}bg-info bg-opacity-10{% endif %}" style="font-size: 0.9rem;">
+                                        {{ day|date:"m/d" }}<br>
+                                        <small class="{% if day.weekday == 5 %}text-primary{% elif day.weekday == 6 %}text-danger{% endif %}">
+                                            ({{ day|date:"D" }})
+                                        </small>
+                                    </th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for emp in employees %}
+                                <tr>
+                                    <td class="align-middle fw-bold bg-light text-start ps-2" style="font-size: 0.9rem;">
+                                        {{ emp.user.username }}
+                                    </td>
+                                    {% for day in week_days %}
+                                        {% with day_str=day|date:"Y-m-d" emp_id=emp.employee|stringformat:"s" %}
+                                        {% with emp_shifts=shift_data|get_item:emp_id %}
+                                        {% with shift=emp_shifts|get_item:day_str %}
+                                        
+                                        <td class="align-middle p-1 position-relative" style="height: 55px; cursor: pointer;" 
+                                            onclick="location.href='{% url 'admin_scheduling_app:edit_shift' %}?emp_id={{ emp.employee }}&date={{ day_str }}'">
+                                            
+                                            {% if shift %}
+                                                <div class="badge bg-primary w-100 py-2" style="font-size: 10px; font-weight: normal;">
+                                                    {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }}
+                                                </div>
+                                            {% else %}
+                                                <div class="text-muted" style="font-size: 12px;">-</div>
+                                            {% endif %}
+                                            <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-10 opacity-0 hov-show"></div>
+                                        </td>
+
+                                        {% endwith %}
+                                        {% endwith %}
+                                        {% endwith %}
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="sticky-top" style="top: 20px;">
+                {% include "admin_scheduling_app/components/request_sidebar.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+td:hover .hov-show { 
+    opacity: 1 !important; 
+}
+.table th, .table td { 
+    vertical-align: middle !important; border-color: #eee !important; 
+}
+.table-responsive {
+    max-height: 75vh; /* 画面の高さに合わせて調整 */
+    overflow: auto;
+}
+
+/* ヘッダー（日付部分）の固定 */
+.table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: #f8f9fa !important; /* 背景色がないと下が透けます */
+    border-bottom: 2px solid #dee2e6;
+}
+
+/* 従業員名（一番左の列）の固定 */
+.table tbody td:first-child, 
+.table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 101; /* ヘッダーより少し高く設定 */
+    background-color: #f8f9fa !important;
+    border-right: 2px solid #dee2e6;
+}
+
+/* 左上の角（従業員名ヘッダー）を最前面に固定 */
+.table thead th:first-child {
+    z-index: 102;
+    top: 0;
+    left: 0;
+}
+
+/* スクロールバーのカスタマイズ（任意：細くして見やすくする） */
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "attendance/app_base.html" %}
+{% load static %}
+{% load calendar_tags %}
+{% block title %}勤務実績{% endblock %}
+{% block header_title %}シフト管理アプリ{% endblock %}
+
+{% block content %}
+
+<div class="container my-5">
+    {# 従業員名とメッセージの表示 #}
+    <div class="text-center mb-4">
+        <h4>{{ user.username }}さん お疲れ様です</h4>
+    </div>
+
+    <h1>勤務実績</h1>
+        
+    {% if message %}
+    {# エラーメッセージがある場合 #}
+        <div class="alert alert-danger" role="alert">
+            <p>{{ message }}</p>
+        </div>
+    {% else %}     
+        <div class="table-responsive">
+        {# Bootstrapなど、CSSフレームワークのクラスを前提としています #}
+        <table class="table table-striped table-bordered text-center">
+            <thead class="thead-dark">
+                <tr class="table-primary">
+                    <th scope="col">月</th>
+                    <th scope="col">勤務実績</th>
+                </tr>
+            </thead>
+            <tbody>
+                {# 前月のデータ #}
+                <tr>
+                    <td>{{ previous_month_name }} (前月)</td>
+                    <td>{{ previous_month_work }}</td>
+                </tr>
+                {# 当月のデータ #}
+                <tr>
+                    <td>{{ current_month_name }} (当月)</td>
+                    <td>{{ current_month_work }}</td>
+                </tr>
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+
+{% endblock %} 

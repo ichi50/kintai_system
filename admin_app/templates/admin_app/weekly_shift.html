@@ -1,0 +1,138 @@
+{% extends "admin_app/base_admin.html" %}
+{% load admin_calendar_tags %}
+
+{% block extra_css %}
+<style>
+    /* 1. 操作エリア（カードヘッダーとナビゲーション）の固定 */
+    .sticky-top-area {
+        position: sticky;
+        top: 0;
+        z-index: 1030; /* Bootstrapの固定ナビゲーションより少し下 */
+        background-color: white;
+    }
+
+    /* 2. テーブル全体のスクロール設定 */
+    .table-responsive {
+        max-height: 75vh; /* 画面の高さの75%までに制限（スクロール可能に） */
+        overflow: auto;
+        border: 1px solid #dee2e6;
+    }
+
+    /* 3. テーブルヘッダー（日付行）の固定 */
+    .table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background-color: #f8f9fa !important;
+        box-shadow: 0 2px 2px -1px rgba(0,0,0,0.1);
+    }
+
+    /* 4. 左端の従業員列の固定 */
+    .table tbody td:first-child,
+    .table thead th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 101;
+        background-color: #f8f9fa !important; /* 背景色をつけて透けないようにする */
+        min-width: 150px;
+        border-right: 2px solid #dee2e6 !important;
+    }
+
+    /* 5. 左上の角（従業員ヘッダー）を最前面に */
+    .table thead th:first-child {
+        z-index: 102;
+    }
+
+    /* テーブルの線が消えないための調整 */
+    .table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0"><i class="material-icons align-middle me-1">calendar_view_month</i>シフトスケジュール表</h5>
+        <div class="btn-group">
+            <a href="{% url 'admin_app:daily_schedule' %}?date={{ week_days.0|date:'Y-m-d' }}" class="btn btn-outline-primary" class="btn btn-outline-primary">日別</a>
+            <a href="#" class="btn btn-primary active">週別</a>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-4 p-3 bg-light rounded shadow-sm">
+
+            <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-outline-secondary">&laquo; 前の日</a>
+            <a href="?date={{ prev_week|date:'Y-m-d' }}" class="btn btn-outline-secondary">&laquo; 1週前</a>
+
+            <div class="text-center">
+                <h3 class="mb-0">{{ week_days.0|date:"Y年m月" }}</h3>
+                <form method="GET" class="d-flex align-items-center justify-content-center">
+                    <input type="date" name="date" value="{{ target_date|date:'Y-m-d' }}" 
+                    class="form-control form-control-sm w-auto me-2" onchange="this.form.submit()">
+                </form>
+            </div>
+
+            <a href="?date={{ next_week|date:'Y-m-d' }}" class="btn btn-outline-secondary">1週後 &raquo;</a>
+            <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-outline-secondary">次の日 &raquo;</a>
+
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered text-center align-middle">
+                <thead>
+                    <tr class="bg-light">
+                        <th style="width: 150px;">従業員</th>
+                        {% for day in week_days %}
+                        <th class="{% if day.weekday == 5 %}table-primary{% elif day.weekday == 6 %}table-danger{% endif %}">
+                            {{ day|date:"m/d" }}<br>
+                            <small>({{ day|j_weekday }})</small>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in employees %}
+                    <tr>
+                        <td class="fw-bold text-start bg-light">
+                            {{ emp.user.username }}
+                            <div class="text-muted small fw-normal">ID: {{ emp.employee }}</div>
+                        </td>
+                        
+                        {% with emp_id=emp.employee|stringformat:"s" %}
+                            {% for day in week_days %}
+                            {% with day_str=day|date:"Y-m-d" %}
+                            <td style="height: 60px; min-width: 120px;">
+                                {% with emp_shifts=shift_data|get_shift_on_day:emp_id %}
+                                    {% with shift=emp_shifts|get_shift_on_day:day_str %}
+                                        {% if shift %}
+                                            <div class="p-1 rounded shadow-sm" style="background-color: #e7f1ff; border: 1px solid #0d6efd; border-left: 4px solid #0d6efd;">
+                                                <div class="fw-bold text-primary" style="font-size: 0.85rem;">
+                                                    {{ shift.start_time|time:"H:i" }}
+                                                </div>
+                                                <div class="text-muted" style="font-size: 0.7rem;">
+                                                    |
+                                                </div>
+                                                <div class="fw-bold text-primary" style="font-size: 0.85rem;">
+                                                    {{ shift.end_time|time:"H:i" }}
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted small">-</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% endwith %}
+                            </td>
+                            {% endwith %}
+                            {% endfor %}
+                        {% endwith %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

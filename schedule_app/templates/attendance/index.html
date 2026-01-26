@@ -1,0 +1,215 @@
+{% extends "attendance/app_base.html" %}
+{% load static %}
+{% load calendar_tags %}
+{% block title %}打刻メイン画面{% endblock %}
+{% block header_title %}シフト管理アプリ{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column align-items-center mt-4">            
+    <div style="max-width: 450px; width: 100%;">
+        <h4 class="text-center mb-4">{{ user.username }}さん お疲れ様です</h4>
+        
+        <div id="todayShiftLabel" class="alert shadow-sm mb-4 p-3 text-center 
+            {% if today_shift %}alert-info{% else %}alert-warning{% endif %}" role="alert">
+            
+            <p id="todayShiftDate" class="mb-1 fw-bold fs-6">
+                {% now "n月j日" as today_month_day %}
+                {% now "D" as today_day_of_week %}
+                {{ today_month_day }}（{{ today_day_of_week }}）の勤務
+            </p>
+            
+            <p id="todayShiftTimeInfo" class="mb-0 fs-5">
+                {% if today_shift %}
+                    {{ today_shift.start_time|date:"H:i" }} ~ {{ today_shift.end_time|date:"H:i" }} 
+                    （{{ today_work_minutes|format_minutes_to_hours }}）
+                {% else %}
+                    シフトの予定はありません
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="card shadow-sm mb-5">
+            <div class="card-header bg-light text-center">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <a href="{% url 'schedule:index' %}?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-sm btn-outline-primary">&lt; 前月</a>
+                    <h5 class="mb-0">{{ current_month_str }} のシフト</h5>
+                    <a href="{% url 'schedule:index' %}?year={{ next_year }}&month={{ next_month }}" class="btn btn-sm btn-outline-primary">次月 &gt;</a>
+                </div>
+            </div>
+            <div class="card-body p-2">
+                {% get_shift_calendar user year month as calendar_html %}
+                {{ calendar_html|safe }}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal fade" id="shiftDetailModal" tabindex="-1" aria-labelledby="shiftDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="shiftDetailModalLabel">
+                    <span id="modalHeaderDate">シフト詳細</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>勤務時間:</strong> <span id="modalShiftTime"></span></p> 
+                <p><strong>労働時間:</strong> <span id="modalWorkHours"></span></p> 
+                
+                <div id="modalNoShift" class="alert alert-warning d-none">
+                    この日はシフトが登録されていません。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %} 
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const calendar = document.querySelector('.calendar');
+    const shiftDetailModal = new bootstrap.Modal(document.getElementById('shiftDetailModal'));
+    
+    // 曜日の配列（日曜始まりとして定義）
+    const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'];
+    
+    // 今日の日付 (YYYY-MM-DD形式)
+    const today = new Date();
+    // UTCからローカルタイムゾーンに変換
+    const todayDateString = `${today.getFullYear()}-${('0' + (today.getMonth() + 1)).slice(-2)}-${('0' + today.getDate()).slice(-2)}`;
+
+    // 分を「XhYm」形式に変換するヘルパー関数
+    function formatMinutesToHours(minutes) {
+        if (minutes === 0) return '0h';
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        
+        let result = hours > 0 ? `${hours}h` : '';
+        if (remainingMinutes > 0) {
+            result += `${remainingMinutes}m`;
+        }
+        return result || '0h';
+    }
+
+    // --- モーダル表示ロジック (既存) ---
+    function setupModalLogic() {
+        if (calendar) {
+            calendar.addEventListener('click', function(e) {
+                let targetCell = e.target.closest('.clickable-cell');
+                e.stopPropagation(); // イベントの横取りを防ぐ
+
+                if (targetCell) {
+                    const shiftDataRaw = targetCell.dataset.shiftDetail;
+                    const dateString = targetCell.dataset.date;
+                    
+                    const modalHeaderDate = document.getElementById('modalHeaderDate'); 
+                    const modalShiftTime = document.getElementById('modalShiftTime');
+                    const modalWorkHours = document.getElementById('modalWorkHours'); 
+                    const modalNoShift = document.getElementById('modalNoShift');
+
+                    // 1. 日付と曜日をヘッダーに表示
+                    const dateObj = new Date(dateString);
+                    const dayStr = dayOfWeek[dateObj.getDay()];
+                    const displayDate = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日 (${dayStr}) のシフト`;
+                    modalHeaderDate.textContent = displayDate;
+
+                    const timeParagraph = modalShiftTime.closest('p');
+                    const hoursParagraph = modalWorkHours.closest('p');
+
+                    if (timeParagraph) timeParagraph.classList.add('d-none');
+                    if (hoursParagraph) hoursParagraph.classList.add('d-none');
+                    modalNoShift.classList.add('d-none'); // リセット
+
+                    if (shiftDataRaw && shiftDataRaw !== '{}') {
+                        try {
+                            const shiftData = JSON.parse(shiftDataRaw.replace(/&quot;/g, '"'));
+
+                            // 2. 勤務時間と労働時間の表示
+                            modalShiftTime.textContent = shiftData.time_str;
+                            const formattedHours = formatMinutesToHours(shiftData.work_minutes);
+                            modalWorkHours.textContent = formattedHours; 
+                            
+                            if (timeParagraph) timeParagraph.classList.remove('d-none');
+                            if (hoursParagraph) hoursParagraph.classList.remove('d-none');
+
+                        } catch (e) {
+                            console.error("Failed to parse shift data:", e);
+                            modalShiftTime.textContent = 'エラー';
+                            modalWorkHours.textContent = 'エラー';
+                            modalNoShift.classList.remove('d-none');
+                        }
+                    } else {
+                        // シフト情報がない場合
+                        modalShiftTime.textContent = '―';
+                        modalWorkHours.textContent = '―';
+                        modalNoShift.classList.remove('d-none');
+                    }
+                    
+                    shiftDetailModal.show();
+                }
+            });
+        }
+    }
+    
+    // 処理実行
+    setupModalLogic();
+});
+</script>{% endblock %}
+{% block extra_css %}
+<style>
+.calendar {
+    table-layout: fixed !important; /* セル幅を均等に固定 */
+    width: 100% !important; 
+}
+/* カレンダーの基本スタイル調整 */
+.calendar th, .calendar td {
+    padding: 2px !important; /* パディングをわずかに増やして安定化 */
+    height: 70px !important; 
+    vertical-align: top !important;
+    cursor: default;
+    position: relative; 
+    width: calc(100% / 7) !important; 
+    box-sizing: border-box !important;
+}
+
+.calendar td:hover {
+    background-color: aqua;
+}
+
+.calendar-day .day-num {
+    text-align: right;
+    padding-right: 2px; 
+    font-size: 0.8em !important; /* フォントサイズを小さくしてスペース確保 */
+    font-weight: bold;
+}
+.calendar-day .shift-info {
+    text-align: center;
+    font-size: 0.7em !important; /* 日付よりもさらに小さく */
+    line-height: 1.2 !important;     
+    white-space: normal; 
+    overflow: visible !important; 
+    text-overflow: clip; 
+    margin-top: 2px;
+}
+.clickable-cell.selected {
+    background-color: #e0f7fa !important; /* 選択時の色 */
+    border: 2px solid #00bcd4 !important;
+}
+
+/* ポップアップのスタイル */
+.detail-popup {
+    /* セル内に配置されるため、セルに合わせて位置を調整 */
+    top: 0;
+    left: 100%;
+    transform: translateX(-50%);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

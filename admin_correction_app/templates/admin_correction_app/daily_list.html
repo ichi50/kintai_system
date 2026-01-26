@@ -1,0 +1,61 @@
+{% extends "admin_app/base_admin.html" %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0">勤怠修正一覧</h5>
+            <div class="d-flex align-items-center">
+                <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="material-icons fs-6 align-middle">chevron_left</i>前日
+                </a>
+                <span class="mx-3 fw-bold fs-5">{{ target_date|date:"Y年m月d日" }}</span>
+                <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-outline-secondary btn-sm">
+                    翌日<i class="material-icons fs-6 align-middle">chevron_right</i>
+                </a>
+            </div>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">従業員名</th>
+                            <th>出勤時間 (打刻)</th>
+                            <th>退勤時間 (打刻)</th>
+                            <th>実労働時間</th>
+                            <th class="text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in attendances %}
+                        <tr>
+                            <td class="ps-4 fw-bold">{{ a.employee.user.username }}</td>
+                            <td>{{ a.attendance_datetime|date:"H:i"|default:"--" }}</td>
+                            <td>{{ a.closing_datetime|date:"H:i"|default:"--" }}</td>
+                            <td>
+                                <span class="badge bg-light text-dark border fw-normal fs-6">
+                                    {{ a.worked_hours|floatformat:2 }} 時間
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <a href="{% url 'admin_correction_app:edit_attendance' a.id %}" class="btn btn-primary btn-sm px-3">
+                                    <i class="material-icons fs-6 align-middle me-1">edit</i>修正
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                その日の勤怠データは見つかりませんでした。
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

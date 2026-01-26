@@ -1,0 +1,53 @@
+{% load admin_calendar_tags %}
+<style>
+    /* グラフの土台（24時間の枠） */
+    /* 共通のバー設定 */
+    .shift-bar {
+        position: absolute;
+        height: 24px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* 予定バー（青） */
+    .plan-bar {
+        background-color: #ffcc00 !important;
+        border-left: 4px solid #004085;
+    }
+
+    /* バーの中の文字 */
+    .bar-label {
+        color: rgb(0, 0, 0);
+        font-size: 9px;
+        padding-left: 5px;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+</style>
+{% load admin_calendar_tags %}
+
+{# スタイル定義はそのまま #}
+
+{% with key=emp.employee|stringformat:"s" %}
+    {# 1段目: 従業員IDで検索 #}
+    {% with emp_shifts=shift_data|get_shift_on_day:key %}
+        {# 2段目: 日付文字列で検索 #}
+        {% with d_str=target_date|date:"Y-m-d" %}
+            {% with shift=emp_shifts|get_shift_on_day:d_str %}
+                
+                {% if shift %}
+                    <div class="shift-bar" 
+                         style="{{ shift|get_shift_bar_style }} position: absolute !important; height: 32px !important; top: 8px !important; background-color: #0d6efd !important; border-radius: 4px; z-index: 10; display: flex; align-items: center; border-left: 4px solid #004085;">
+                        <small style="color: white; font-size: 9px; padding-left: 4px; white-space: nowrap;">
+                            {{ shift.start_time|time:"H:i" }}~{{ shift.end_time|time:"H:i"}}
+                        </small>
+                    </div>
+                {% endif %}
+                
+            {% endwith %}
+        {% endwith %}
+    {% endwith %}
+{% endwith %}

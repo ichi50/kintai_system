@@ -1,0 +1,122 @@
+{% extends "admin_app/base_admin.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="fw-bold mb-0">打刻データ修正: {{ attendance.employee.user.username }}</h5>
+                <small class="text-muted">{{ attendance.date|date:"Y年m月d日" }} の勤務記録</small>
+            </div>
+            <button type="button" id="add-form" class="btn btn-outline-success btn-sm">
+                <i class="material-icons align-middle">add_circle</i> 打刻行を追加
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="post" id="clocking-form">
+                {% csrf_token %}
+                {{ formset.management_form }}
+
+                <table class="table align-middle" id="form-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>打刻日時</th>
+                            <th>打刻属性</th>
+                            <th class="text-center">削除</th>
+                        </tr>
+                    </thead>
+                    <tbody id="form-list">
+                        {% for form in formset %}
+                        <tr class="clocking-form-row">
+                            <td>
+                                {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+                                {{ form.clocking_datetime }}
+                            </td>
+                            <td>{{ form.clocking_type }}</td>
+                            <td class="text-center">
+                                {% if form.instance.pk %}
+                                    <div style="display:none;">{{ form.DELETE }}</div>
+                                    <button type="button" class="btn btn-outline-danger btn-sm fake-delete-btn">
+                                        <i class="material-icons fs-6 align-middle">delete</i>
+                                    </button>
+                                {% else %}
+                                    <button type="button" class="btn btn-outline-danger btn-sm remove-form">
+                                        <i class="material-icons fs-6 align-middle">delete</i>
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <script type="text/html" id="empty-form-template">
+                    <tr class="clocking-form-row">
+                        <td>{{ formset.empty_form.clocking_datetime }}</td>
+                        <td>{{ formset.empty_form.clocking_type }}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-link text-danger p-0 remove-form">
+                                <i class="material-icons">delete</i>
+                            </button>
+                        </td>
+                    </tr>
+                </script>
+
+                <div class="d-flex justify-content-between mt-4 border-top pt-3">
+                    <a href="javascript:history.back()" class="btn btn-link text-secondary">戻る</a>
+                    <button type="submit" class="btn btn-primary px-5 shadow-sm">
+                        <i class="material-icons align-middle">save</i> 修正内容を保存して再集計
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const addBtn = document.getElementById('add-form');
+    const formList = document.getElementById('form-list');
+    const totalForms = document.getElementById('id_form-TOTAL_FORMS'); // Djangoの管理用フィールド
+    const template = document.getElementById('empty-form-template').innerHTML;
+
+    // 行追加
+    addBtn.addEventListener('click', () => {
+        const currentFormCount = parseInt(totalForms.value);
+        const newFormHtml = template.replace(/__prefix__/g, currentFormCount);
+        
+        formList.insertAdjacentHTML('beforeend', newFormHtml);
+        totalForms.value = currentFormCount + 1;
+    });
+
+    // 新規追加行の削除（DOMのみ）
+    formList.addEventListener('click', (e) => {
+        if (e.target.closest('.remove-form')) {
+            e.target.closest('.clocking-form-row').remove();
+            // 注意: 本来は管理フィールドの数値を減らす必要がありますが、
+            // 削除チェックボックス(DELETE)を使わない新規行のみの簡易対応です。
+        }
+    });
+    document.querySelectorAll('.fake-delete-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const row = this.closest('.clocking-form-row');
+            const deleteCheckbox = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+            if (deleteCheckbox) {
+                deleteCheckbox.checked = true; // 削除フラグを立てる
+                row.style.display = 'none';    // 画面上から消す（保存時に削除される）
+            }
+        });
+    });
+
+    // --- 新規行の削除ボタン処理 (DOMから完全に消す) ---
+    document.getElementById('form-list').addEventListener('click', (e) => {
+        const btn = e.target.closest('.remove-form');
+        if (btn) {
+            btn.closest('.clocking-form-row').remove();
+            // TOTAL_FORMSを減らす処理を追加
+            const totalForms = document.querySelector('[id$="-TOTAL_FORMS"]');
+            totalForms.value = parseInt(totalForms.value) - 1;
+        }
+    });
+</script>
+
+{% endblock %}

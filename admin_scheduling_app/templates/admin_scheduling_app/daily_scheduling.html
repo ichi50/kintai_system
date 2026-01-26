@@ -1,0 +1,117 @@
+{% extends "admin_app/base_admin.html" %}
+{% block content %}
+<div class="container-fluid mt-3"> 
+    <div class="row g-3"> 
+        <div class="col-md-9">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">スケジュール作成</h5>
+                    <div class="d-flex align-items-center">
+                        <div class="btn-group">
+                            <a href="#" class="btn btn-primary active">日別</a>
+                            <a href="{% url 'admin_scheduling_app:weekly_scheduling' %}" class="btn btn-outline-primary">週別</a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered mb-0" style="table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0;">
+                            <colgroup>
+                                <col style="width: 150px;"> <col>
+                            </colgroup>
+                            <thead>
+                                <tr class="bg-light text-center">
+                                    <th style="width: 150px; background-color: #f8f9fa;">従業員名</th>
+                                    <th class="p-0 position-relative" style="height: 30px; background-color: #f8f9fa;">
+                                        <div class="d-flex w-100 h-100 align-items-center">
+                                            {% for h in hours %}
+                                            <div style="flex: 1; font-size: 10px; border-left: 1px solid #dee2e6;">{{ h }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for emp in employees %}
+                                <tr>
+                                    <td class="align-middle fw-bold px-2" style="background-color: #f8f9fa;">
+                                        {{ emp.user.username }}
+                                    </td>
+                                    <td class="p-0 position-relative" style="height: 60px; background-color: #fff;">
+                                        <div class="d-flex position-absolute w-100 h-100" style="pointer-events: none; z-index: 0;">
+                                            {% for h in hours %}
+                                            <div style="flex: 1; border-left: 1px solid rgba(0,0,0,0.05);"></div>
+                                            {% endfor %}
+                                        </div>
+
+                                        <div class="position-absolute w-100 h-100" style="z-index: 1; pointer-events: none;">
+                                            {% with emp_id=emp.employee|stringformat:"s" %}
+                                                {% include "admin_scheduling_app/components/daily_shift_bar.html" %}
+                                            {% endwith %}
+                                        </div>
+
+                                        <div class="position-absolute w-100 h-100" 
+                                            style="z-index: 2; cursor: pointer;"
+                                            onclick="location.href='{% url 'admin_scheduling_app:edit_shift' %}?emp_id={{ emp.employee }}&date={{ target_date|date:'Y-m-d' }}'">
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="sticky-top" style="top: 20px;"> {% include "admin_scheduling_app/components/request_sidebar.html" %}
+        </div>
+    </div>
+</div>
+<style>
+    /* 1. スクロール領域 */
+    .table-responsive {
+        max-height: 70vh;
+        overflow: auto;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .table-bordered th,
+    .table-bordered td {
+        border: 1px solid #dee2e6 !important;
+    }
+
+    /* 2. 時間軸（上側ヘッダー全体）の固定 */
+    .table thead th {
+        position: sticky !important;
+        top: 0;
+        z-index: 100 !important; /* シフトバーより確実に上 */
+        background-color: #f8f9fa !important; /* 背景が必須 */
+        border-bottom: 2px solid #dee2e6 !important;
+    }
+
+    /* 3. 従業員名（左側列）の固定 */
+    .table tbody td:first-child {
+        position: sticky !important;
+        left: 0;
+        z-index: 101 !important; /* 上側ヘッダーよりも前面 */
+        background-color: #f8f9fa !important;
+        border-right: 2px solid #dee2e6 !important;
+    }
+
+    /* 4. 左上の「従業員名」の角セル（最前面） */
+    .table thead th:first-child {
+        position: sticky !important;
+        top: 0;
+        left: 0;
+        z-index: 102 !important; /* 縦横交差するので最大値 */
+    }
+
+    /* 境界線が消えるのを防ぐ設定 */
+    .table-bordered {
+        border-collapse: separate !important;
+    }
+</style>
+{% endblock %}
