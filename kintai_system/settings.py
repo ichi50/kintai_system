@@ -16,9 +16,10 @@ SECRET_KEY = 'django-insecure-e6h1k$0^*e-9uxf7iakn%1lr9f#$0s9&2_w(x1hp+e$svgzrwb
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    '13.239.16.133', # EC2パブリックIP (本番用)
+    '*', # EC2パブリックIP (本番用)
     '127.0.0.1',     # ローカルループバックIP (開発用) ★★★ これを追加 ★★★
     'localhost',     # ローカルホスト名 (開発用) ★★★ これも追加 ★★★
+    'kintai.mydns.jp'
 ]
 
 
@@ -82,7 +83,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'kintai',
-        'USER': 'root',
+        'USER': 'ichi50',
         'PASSWORD': os.environ.get('DB_PASSWORD', '1234'),
         'HOST': os.environ.get('DB_HOST','127.0.0.1'), 
         'PORT': os.environ.get('DB_PORT', '3306'), 
